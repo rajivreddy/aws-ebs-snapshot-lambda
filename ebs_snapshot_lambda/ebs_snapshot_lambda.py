@@ -1,13 +1,11 @@
 import argparse
 import logging
+import sys
 import time
 
 import boto3
 from botocore.exceptions import ClientError
-from botocore.exceptions import ParamValidationError
 
-ec2_client = boto3.client("ec2")
-ec2_resource = boto3.resource("ec2")
 logging.basicConfig(level=logging.INFO)
 
 
@@ -23,8 +21,16 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def get_ebs_volume_id(component):
-    list_of_volumes = ec2_resource.volumes.all()
+def get_all_ebs_volumes(ec2_resource):
+    try:
+        list_of_volumes = ec2_resource.volumes.all()
+        return list_of_volumes
+    except ClientError as botocore_exception:
+        logging.error(f"Unable to retrieve list of volumes: {botocore_exception}")
+        sys.exit(1)
+
+
+def get_ebs_volume_id(component, list_of_volumes):
     for volume in list_of_volumes:
         if volume.tags is None:
             continue
@@ -40,7 +46,8 @@ def get_ebs_volume_id(component):
         logging.info(f"Retrieved EBS volume id of {ebs_volume_id}")
         return ebs_volume_id
     except UnboundLocalError:
-        raise Exception("No volume ID found for the orchestrator component")
+        logging.error("No volume ID found for the orchestrator component")
+        sys.exit()
 
 
 def create_snapshot_from_ebs_volume(component, ebs_volume_id):
@@ -59,7 +66,7 @@ def create_snapshot_from_ebs_volume(component, ebs_volume_id):
         wait_for_new_snapshot_to_become_available(
             component=component, snapshot_id=snapshot_id.id
         )
-    except (ClientError, ParamValidationError) as botocore_exception:
+    except ClientError as botocore_exception:
         raise Exception(f"Failed to create snapshot: {botocore_exception}")
 
 
@@ -102,13 +109,18 @@ def delete_stale_snapshots(component):
                 logging.info(f"Attempting to delete snapshot {snapshot['SnapshotId']}")
                 ec2_client.delete_snapshot(SnapshotId=snapshot["SnapshotId"])
                 logging.info(f"Successfully deleted snapshot {snapshot['SnapshotId']}")
-            except (ClientError, ParamValidationError) as botocore_exception:
+            except ClientError as botocore_exception:
                 raise Exception(f"Failed to remove snapshot: {botocore_exception}")
 
 
 if __name__ == "__main__":
     args = parse_arguments()
     component = args.component
-    ebs_volume_id = get_ebs_volume_id(component=component)
+    ec2_client = boto3.client("ec2")
+    ec2_resource = boto3.resource("ec2")
+    list_of_volumes = get_all_ebs_volumes(ec2_resource=ec2_resource)
+    ebs_volume_id = get_ebs_volume_id(
+        component=component, list_of_volumes=list_of_volumes
+    )
     create_snapshot_from_ebs_volume(component=component, ebs_volume_id=ebs_volume_id)
     delete_stale_snapshots(component=component)
