@@ -50,7 +50,7 @@ def get_ebs_volume_id(component, list_of_volumes):
         sys.exit()
 
 
-def create_snapshot_from_ebs_volume(component, ebs_volume_id):
+def create_snapshot_from_ebs_volume(component, ebs_volume_id, ec2_resource):
     try:
         snapshot_id = ec2_resource.create_snapshot(
             Description=f"Snapshot from {component} ebs volume {ebs_volume_id}",
@@ -67,31 +67,44 @@ def create_snapshot_from_ebs_volume(component, ebs_volume_id):
             component=component, snapshot_id=snapshot_id.id
         )
     except ClientError as botocore_exception:
-        raise Exception(f"Failed to create snapshot: {botocore_exception}")
+        logging.error(f"Failed to create snapshot: {botocore_exception}")
+        sys.exit(1)
 
 
-def wait_for_new_snapshot_to_become_available(component, snapshot_id, max_retries=45):
+def wait_for_new_snapshot_to_become_available(
+    component,
+    ec2_client,
+    snapshot_id,
+    desired_state="completed",
+    max_retries=45,
+    timeout=60,
+):
     retry_count = 1
+    snapshot_available = False
 
-    while retry_count <= max_retries:
+    while snapshot_available == False and retry_count <= max_retries:
         snapshot_state = ec2_client.describe_snapshots(SnapshotIds=[snapshot_id])
 
-        if snapshot_state["Snapshots"][0]["State"] == "completed":
+        if snapshot_state["Snapshots"][0]["State"] == desired_state:
             logging.info(f"{snapshot_id} is now available")
-            break
+            snapshot_available = True
+            return snapshot_available
         else:
-            logging.info(f"State is not yet completed, retry_count={retry_count}")
+            logging.info(
+                f"State is not yet in the desired state of {desired_state}, retry_count={retry_count}"
+            )
             logging.info(f"Current state is: {snapshot_state['Snapshots'][0]['State']}")
             retry_count += 1
-            time.sleep(60)
+            time.sleep(timeout)
 
     if retry_count > max_retries:
-        raise Exception(
+        logging.error(
             f"Failed to create new {component} snapshot within timeout of {max_retries} minutes"
         )
+        sys.exit(1)
 
 
-def delete_stale_snapshots(component):
+def delete_stale_snapshots(component, ec2_client):
     component_snapshots = ec2_client.describe_snapshots(
         Filters=[{"Name": "tag:Name", "Values": [component]}]
     )
@@ -110,7 +123,8 @@ def delete_stale_snapshots(component):
                 ec2_client.delete_snapshot(SnapshotId=snapshot["SnapshotId"])
                 logging.info(f"Successfully deleted snapshot {snapshot['SnapshotId']}")
             except ClientError as botocore_exception:
-                raise Exception(f"Failed to remove snapshot: {botocore_exception}")
+                logging.error(f"Failed to remove snapshot: {botocore_exception}")
+                sys.exit(1)
 
 
 if __name__ == "__main__":

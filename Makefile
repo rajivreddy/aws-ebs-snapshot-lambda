@@ -8,7 +8,8 @@ PYTHON_OK := $(shell type -P python)
 .SUFFIXES:
 
 black:
-	${VENV}/bin/black ./ebs-snapshot-lambda/
+	${VENV}/bin/black ./ebs_snapshot_lambda/
+	${VENV}/bin/black ./test/
 
 check_python:
 	@echo '*********** Checking for Python installation ***********'
@@ -44,7 +45,7 @@ typechecking: check_python
 
 security_checks:
 	${VENV}/bin/safety check
-	${VENV}/bin/bandit -r ./ebs-snapshot-lambda
+	${VENV}/bin/bandit -r ./ebs_snapshot_lambda
 
 clean:
 	rm -rf ${VENV}
