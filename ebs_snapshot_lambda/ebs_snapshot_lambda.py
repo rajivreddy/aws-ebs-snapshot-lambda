@@ -60,12 +60,18 @@ def create_snapshot_from_ebs_volume(component, ebs_volume_id, ec2_resource, ec2_
                 }
             ],
         )
-        logging.info(f"Created new snapshot id of {snapshot_id.id}")
+    except ClientError as botocore_exception:
+        logging.error(f"Failed to create snapshot: {botocore_exception}")
+        sys.exit(1)
+
+    logging.info(f"Created new snapshot id of {snapshot_id.id}")
+
+    try:
         wait_for_new_snapshot_to_become_available(
             component=component, ec2_client=ec2_client, snapshot_id=snapshot_id.id
         )
     except ClientError as botocore_exception:
-        logging.error(f"Failed to create snapshot: {botocore_exception}")
+        logging.error(f"Failed to check snapshot status: {botocore_exception}")
         sys.exit(1)
 
 
