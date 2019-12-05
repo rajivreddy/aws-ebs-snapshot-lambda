@@ -16,15 +16,12 @@ from ebs_snapshot_lambda.ebs_snapshot_lambda import (
     wait_for_new_snapshot_to_become_available,
 )
 
-mock_ec2_client = boto3.client("ec2")
-mock_ec2_resource = boto3.resource("ec2")
-
 
 @mock_ec2
 def test_get_all_ebs_volumes():
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
-    client.create_volume(
+    single_volume = client.create_volume(
         Size=10,
         AvailabilityZone="eu-west-2a",
         TagSpecifications=[
@@ -34,7 +31,15 @@ def test_get_all_ebs_volumes():
             }
         ],
     )
-    get_all_ebs_volumes(resource)
+    ebs_volumes = get_all_ebs_volumes(resource)
+    volume_id = single_volume["VolumeId"]
+    list_of_ebs_volumes = []
+
+    for ebs_volume in ebs_volumes:
+        list_of_ebs_volumes.append(ebs_volume.id)
+
+    assert len(list_of_ebs_volumes) == 1
+    assert volume_id == list_of_ebs_volumes[0]
 
 
 @mock.patch("boto3.resource")
