@@ -6,6 +6,9 @@ import time
 import boto3
 from botocore.exceptions import ClientError
 
+from .aws_typings import LambdaContext
+from .aws_typings import LambdaDict
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -126,7 +129,11 @@ def delete_stale_snapshots(ec2_client, snapshots_to_remove):
                 sys.exit(1)
 
 
-if __name__ == "__main__":
+def lambda_handler(event: LambdaDict, context: LambdaContext):
+    """
+    Creates a snapshot for a given component, using the appropriate volume ID. Also checks for and removes
+    any stale snapshots for the given component
+    """
     component = os.getenv("component")
     snapshot_retention_count = os.getenv("snapshot_retention_count")
     ec2_client = boto3.client("ec2")
