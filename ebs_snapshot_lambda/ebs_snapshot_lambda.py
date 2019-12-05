@@ -39,15 +39,13 @@ def get_ebs_volume_id(component, list_of_volumes):
             try:
                 if dict_of_tags["Component"] == component:
                     ebs_volume_id = volume.id
+                    logging.info(f"Retrieved EBS volume id of {ebs_volume_id}")
+                    return ebs_volume_id
             except KeyError:
                 continue
 
-    try:
-        logging.info(f"Retrieved EBS volume id of {ebs_volume_id}")
-        return ebs_volume_id
-    except UnboundLocalError:
-        logging.error("No volume ID found for the orchestrator component")
-        sys.exit()
+    logging.error("No volume ID found for the orchestrator component")
+    sys.exit(1)
 
 
 def create_snapshot_from_ebs_volume(component, ebs_volume_id, ec2_resource, ec2_client):
