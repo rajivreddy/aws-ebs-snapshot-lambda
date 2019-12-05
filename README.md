@@ -17,7 +17,7 @@ To manually run the script, you would need to first export your AWS_DEFAULT_PROF
 
 ```export AWS_DEFAULT_PROFILE="webops-integration```
 
-You would also need to configure the virtual environment for this repository - you can do this by running ```make venv```
+You would also need to configure the virtual environment for this repository - you can do this by running ```make install```
 
 You can then run the script via the command line, passing an argument for the component you wish to create a snapshot for (for example, if you wanted to create
 a snapshot for the Orchestrator component, you would run the following)
