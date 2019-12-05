@@ -85,6 +85,80 @@ def test_get_ebs_volume_id():
     get_ebs_volume_id(component="orchestrator", list_of_volumes=list_of_volumes)
 
 
+@mock_ec2
+def test_get_ebs_volume_id_from_multiple_volumes():
+    client = boto3.client("ec2", region_name="eu-west-2")
+    resource = boto3.resource("ec2", region_name="eu-west-2")
+    orchestrator_volume = client.create_volume(
+        Size=10,
+        AvailabilityZone="eu-west-2a",
+        TagSpecifications=[
+            {
+                "ResourceType": "volume",
+                "Tags": [{"Key": "Component", "Value": "orchestrator"}],
+            }
+        ],
+    )
+    # Creating an additional volume
+    client.create_volume(
+        Size=10,
+        AvailabilityZone="eu-west-2a",
+        TagSpecifications=[
+            {
+                "ResourceType": "volume",
+                "Tags": [{"Key": "Component", "Value": "app_server"}],
+            }
+        ],
+    )
+    list_of_volumes = get_all_ebs_volumes(resource)
+    orchestrator_volume_id = orchestrator_volume["VolumeId"]
+    with LogCapture(level=logging.INFO) as log_capture:
+        ebs_volume_id = get_ebs_volume_id(
+            component="orchestrator", list_of_volumes=list_of_volumes
+        )
+        assert ebs_volume_id == orchestrator_volume_id
+    log_capture.check(
+        ("root", "INFO", f"Retrieved EBS volume id of {orchestrator_volume_id}")
+    )
+
+
+@mock_ec2
+def test_get_ebs_volume_id_from_multiple_volumes_with_same_component_name():
+    client = boto3.client("ec2", region_name="eu-west-2")
+    resource = boto3.resource("ec2", region_name="eu-west-2")
+    first_orchestrator_volume = client.create_volume(
+        Size=10,
+        AvailabilityZone="eu-west-2a",
+        TagSpecifications=[
+            {
+                "ResourceType": "volume",
+                "Tags": [{"Key": "Component", "Value": "orchestrator"}],
+            }
+        ],
+    )
+    # Creating an additional volume with the same component name
+    client.create_volume(
+        Size=10,
+        AvailabilityZone="eu-west-2a",
+        TagSpecifications=[
+            {
+                "ResourceType": "volume",
+                "Tags": [{"Key": "Component", "Value": "orchestrator"}],
+            }
+        ],
+    )
+    list_of_volumes = get_all_ebs_volumes(resource)
+    first_orchestrator_volume_id = first_orchestrator_volume["VolumeId"]
+    with LogCapture(level=logging.INFO) as log_capture:
+        ebs_volume_id = get_ebs_volume_id(
+            component="orchestrator", list_of_volumes=list_of_volumes
+        )
+        assert ebs_volume_id == first_orchestrator_volume_id
+    log_capture.check(
+        ("root", "INFO", f"Retrieved EBS volume id of {first_orchestrator_volume_id}")
+    )
+
+
 def test_get_ebs_volume_id_raises_system_exit_on_unbound_local_error():
     with LogCapture() as log_capture:
         with pytest.raises(SystemExit):
