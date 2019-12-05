@@ -18,6 +18,13 @@ def parse_arguments():
         dest="component",
         required=True,
     )
+    parser.add_argument(
+        "--snapshot_retention_count",
+        help="The number of previous snapshots for the component to retain (defaults to zero)",
+        dest="snapshot_retention_count",
+        default=0,
+        required=False,
+    )
     return parser.parse_args()
 
 
@@ -105,20 +112,30 @@ def wait_for_new_snapshot_to_become_available(
     sys.exit(1)
 
 
-def delete_stale_snapshots(component, ec2_client):
-    component_snapshots = ec2_client.describe_snapshots(
-        Filters=[{"Name": "tag:Name", "Values": [component]}]
-    )
+def identify_stale_snapshots(component, ec2_client, snapshot_retention_count=0):
+    try:
+        component_snapshots = ec2_client.describe_snapshots(
+            Filters=[{"Name": "tag:Name", "Values": [component]}]
+        )
+    except ClientError as botocore_exception:
+        logging.error(f"Failed to obtain snapshots data: {botocore_exception}")
+        sys.exit(1)
 
     component_snapshots_data = component_snapshots["Snapshots"]
+
     sorted_component_snapshots = sorted(
         component_snapshots_data, key=lambda i: (i["StartTime"]), reverse=True
     )
-    snapshots_to_remove = sorted_component_snapshots[1:]
+    snapshots_to_retain = snapshot_retention_count + 1
+    snapshots_to_remove = sorted_component_snapshots[snapshots_to_retain:]
+    return snapshots_to_remove
+
+
+def delete_stale_snapshots(ec2_client, snapshots_to_remove):
     if len(snapshots_to_remove) == 0:
         logging.info("No snapshots to delete")
     else:
-        for snapshot in sorted_component_snapshots[1:]:
+        for snapshot in snapshots_to_remove:
             try:
                 logging.info(f"Attempting to delete snapshot {snapshot['SnapshotId']}")
                 ec2_client.delete_snapshot(SnapshotId=snapshot["SnapshotId"])
@@ -130,6 +147,7 @@ def delete_stale_snapshots(component, ec2_client):
 
 if __name__ == "__main__":
     args = parse_arguments()
+    snapshot_retention_count = args.snapshot_retention_count
     component = args.component
     ec2_client = boto3.client("ec2")
     ec2_resource = boto3.resource("ec2")
@@ -143,4 +161,11 @@ if __name__ == "__main__":
         ec2_resource=ec2_resource,
         ec2_client=ec2_client,
     )
-    delete_stale_snapshots(component=component, ec2_client=ec2_client)
+    snapshots_to_remove = identify_stale_snapshots(
+        component=component,
+        ec2_client=ec2_client,
+        snapshot_retention_count=snapshot_retention_count,
+    )
+    delete_stale_snapshots(
+        ec2_client=ec2_client, snapshots_to_remove=snapshots_to_remove
+    )
