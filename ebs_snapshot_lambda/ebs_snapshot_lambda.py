@@ -84,15 +84,13 @@ def wait_for_new_snapshot_to_become_available(
     timeout=60,
 ):
     retry_count = 1
-    snapshot_available = False
 
-    while snapshot_available == False and retry_count <= max_retries:
+    while retry_count <= max_retries:
         snapshot_state = ec2_client.describe_snapshots(SnapshotIds=[snapshot_id])
 
         if snapshot_state["Snapshots"][0]["State"] == desired_state:
             logging.info(f"{snapshot_id} is now available")
-            snapshot_available = True
-            return snapshot_available
+            return True
         else:
             logging.info(
                 f"State is not yet in the desired state of {desired_state}, retry_count={retry_count}"
@@ -101,11 +99,10 @@ def wait_for_new_snapshot_to_become_available(
             retry_count += 1
             time.sleep(timeout)
 
-    if retry_count > max_retries:
-        logging.error(
-            f"Failed to create new {component} snapshot within timeout of {max_retries} minutes"
-        )
-        sys.exit(1)
+    logging.error(
+        f"Failed to create new {component} snapshot within timeout of {max_retries} minutes"
+    )
+    sys.exit(1)
 
 
 def delete_stale_snapshots(component, ec2_client):
