@@ -1,5 +1,5 @@
-import argparse
 import logging
+import os
 import sys
 import time
 
@@ -7,25 +7,6 @@ import boto3
 from botocore.exceptions import ClientError
 
 logging.basicConfig(level=logging.INFO)
-
-
-def parse_arguments():
-    description = "Arguments for creating a snapshot from an EBS volume"
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument(
-        "--component",
-        help="The name of the component you wish to create a snapshot from",
-        dest="component",
-        required=True,
-    )
-    parser.add_argument(
-        "--snapshot_retention_count",
-        help="The number of previous snapshots for the component to retain (defaults to zero)",
-        dest="snapshot_retention_count",
-        default=0,
-        required=False,
-    )
-    return parser.parse_args()
 
 
 def get_all_ebs_volumes(ec2_resource):
@@ -146,9 +127,8 @@ def delete_stale_snapshots(ec2_client, snapshots_to_remove):
 
 
 if __name__ == "__main__":
-    args = parse_arguments()
-    snapshot_retention_count = args.snapshot_retention_count
-    component = args.component
+    component = os.getenv("component")
+    snapshot_retention_count = os.getenv("snapshot_retention_count")
     ec2_client = boto3.client("ec2")
     ec2_resource = boto3.resource("ec2")
     list_of_volumes = get_all_ebs_volumes(ec2_resource=ec2_resource)
