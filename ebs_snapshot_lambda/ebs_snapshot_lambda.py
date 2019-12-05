@@ -50,7 +50,7 @@ def get_ebs_volume_id(component, list_of_volumes):
         sys.exit()
 
 
-def create_snapshot_from_ebs_volume(component, ebs_volume_id, ec2_resource):
+def create_snapshot_from_ebs_volume(component, ebs_volume_id, ec2_resource, ec2_client):
     try:
         snapshot_id = ec2_resource.create_snapshot(
             Description=f"Snapshot from {component} ebs volume {ebs_volume_id}",
@@ -64,7 +64,7 @@ def create_snapshot_from_ebs_volume(component, ebs_volume_id, ec2_resource):
         )
         logging.info(f"Created new snapshot id of {snapshot_id.id}")
         wait_for_new_snapshot_to_become_available(
-            component=component, snapshot_id=snapshot_id.id
+            component=component, ec2_client=ec2_client, snapshot_id=snapshot_id.id
         )
     except ClientError as botocore_exception:
         logging.error(f"Failed to create snapshot: {botocore_exception}")
@@ -136,5 +136,10 @@ if __name__ == "__main__":
     ebs_volume_id = get_ebs_volume_id(
         component=component, list_of_volumes=list_of_volumes
     )
-    create_snapshot_from_ebs_volume(component=component, ebs_volume_id=ebs_volume_id)
-    delete_stale_snapshots(component=component)
+    create_snapshot_from_ebs_volume(
+        component=component,
+        ebs_volume_id=ebs_volume_id,
+        ec2_resource=ec2_resource,
+        ec2_client=ec2_client,
+    )
+    delete_stale_snapshots(component=component, ec2_client=ec2_client)

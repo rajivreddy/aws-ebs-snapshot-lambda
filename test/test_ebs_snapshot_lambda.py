@@ -142,6 +142,7 @@ def test_create_snapshot_from_ebs_volume():
                 component="orchestrator",
                 ebs_volume_id=ebs_volume_id,
                 ec2_resource=resource,
+                ec2_client=client,
             )
 
 
@@ -160,12 +161,14 @@ def test_create_snapshot_from_ebs_volume_raises_system_exit_on_client_error(
     mock_resource().create_snapshot.side_effect = (
         create_snapshot_from_ebs_volume_side_effect_client_error
     )
+    client = boto3.client("ec2", region_name="eu-west-2")
     with LogCapture() as log_capture:
         with pytest.raises(SystemExit):
             create_snapshot_from_ebs_volume(
                 component="orchestrator",
                 ebs_volume_id="vol-123456",
                 ec2_resource=mock_resource,
+                ec2_client=client,
             )
     log_capture.check(
         (
@@ -274,7 +277,10 @@ def test_delete_stale_snapshots():
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
-            component="orchestrator", ebs_volume_id=ebs_volume_id, ec2_resource=resource
+            component="orchestrator",
+            ebs_volume_id=ebs_volume_id,
+            ec2_resource=resource,
+            ec2_client=client,
         )
     client.create_volume(
         Size=10,
@@ -295,7 +301,10 @@ def test_delete_stale_snapshots():
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
-            component="orchestrator", ebs_volume_id=ebs_volume_id, ec2_resource=resource
+            component="orchestrator",
+            ebs_volume_id=ebs_volume_id,
+            ec2_resource=resource,
+            ec2_client=client,
         )
     delete_stale_snapshots(component="orchestrator", ec2_client=client)
 
@@ -323,7 +332,10 @@ def test_delete_stale_snapshots_raises_system_exit_on_client_error():
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
-            component="orchestrator", ebs_volume_id=ebs_volume_id, ec2_resource=resource
+            component="orchestrator",
+            ebs_volume_id=ebs_volume_id,
+            ec2_resource=resource,
+            ec2_client=client,
         )
     client.create_volume(
         Size=10,
@@ -344,7 +356,10 @@ def test_delete_stale_snapshots_raises_system_exit_on_client_error():
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
-            component="orchestrator", ebs_volume_id=ebs_volume_id, ec2_resource=resource
+            component="orchestrator",
+            ebs_volume_id=ebs_volume_id,
+            ec2_resource=resource,
+            ec2_client=client,
         )
 
 
@@ -371,7 +386,10 @@ def test_delete_stale_snapshots_no_snapshots_to_delete():
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
-            component="orchestrator", ebs_volume_id=ebs_volume_id, ec2_resource=resource
+            component="orchestrator",
+            ebs_volume_id=ebs_volume_id,
+            ec2_resource=resource,
+            ec2_client=client,
         )
     with LogCapture(level=logging.INFO) as log_capture:
         delete_stale_snapshots(component="orchestrator", ec2_client=client)
