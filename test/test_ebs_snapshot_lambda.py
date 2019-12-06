@@ -219,10 +219,39 @@ def test_create_snapshot_from_ebs_volume():
             return_value=True,
         ):
             create_snapshot_from_ebs_volume(
-                component="orchestrator",
-                ebs_volume_id=ebs_volume_id,
-                ec2_resource=resource,
-                ec2_client=client,
+                "orchestrator", ebs_volume_id, resource, client
+            )
+
+
+@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.boto3.resource")
+@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.boto3.client")
+def test_create_snapshot_from_ebs_volume_check_create_snapshot_calls_via_mock(
+    mock_client, mock_resource
+):
+    with mock.patch(
+        "ebs_snapshot_lambda.ebs_snapshot_lambda.get_ebs_volume_id",
+        return_value="vol-123",
+    ) as mock_get_ebs_volume_id:
+        with mock.patch(
+            "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+            return_value=True,
+        ):
+            create_snapshot_from_ebs_volume(
+                "orchestrator",
+                mock_get_ebs_volume_id.return_value,
+                mock_resource,
+                mock_client,
+            )
+            assert mock_resource.create_snapshot.call_count is 1
+            mock_resource.create_snapshot.assert_called_with(
+                Description="Snapshot from orchestrator ebs volume vol-123",
+                TagSpecifications=[
+                    {
+                        "ResourceType": "snapshot",
+                        "Tags": [{"Key": "Name", "Value": "orchestrator"}],
+                    }
+                ],
+                VolumeId="vol-123",
             )
 
 
