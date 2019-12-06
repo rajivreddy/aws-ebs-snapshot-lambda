@@ -516,6 +516,17 @@ def test_delete_stale_snapshots():
     )
 
 
+@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.boto3.client")
+def test_delete_stale_snapshots_delete_snapshot_calls_via_mock(mock_client):
+    snapshots_to_remove = [{"SnapshotId": "snap-05fc368760b82218f"}]
+    delete_stale_snapshots(
+        ec2_client=mock_client, snapshots_to_remove=snapshots_to_remove
+    )
+
+    assert mock_client.delete_snapshot.call_count is 1
+    mock_client.delete_snapshot.assert_called_with(SnapshotId="snap-05fc368760b82218f")
+
+
 @mock.patch("boto3.client")
 @mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.delete_stale_snapshots")
 def test_delete_stale_snapshots_raises_system_exit_on_client_error(_, mock_client):
