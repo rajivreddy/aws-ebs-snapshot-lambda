@@ -12,6 +12,10 @@ from .aws_typings import LambdaDict
 logging.basicConfig(level=logging.INFO)
 
 
+ec2_client = boto3.client("ec2")
+ec2_resource = boto3.resource("ec2")
+
+
 def get_all_ebs_volumes(ec2_resource):
     try:
         list_of_volumes = ec2_resource.volumes.all()
@@ -136,8 +140,6 @@ def lambda_handler(event: LambdaDict, context: LambdaContext):
     """
     component = os.getenv("component")
     snapshot_retention_count = os.getenv("snapshot_retention_count")
-    ec2_client = boto3.client("ec2")
-    ec2_resource = boto3.resource("ec2")
     list_of_volumes = get_all_ebs_volumes(ec2_resource=ec2_resource)
     ebs_volume_id = get_ebs_volume_id(
         component=component, list_of_volumes=list_of_volumes
