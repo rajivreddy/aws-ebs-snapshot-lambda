@@ -60,6 +60,8 @@ package: bumpversion
 	openssl dgst -sha256 -binary ${LAMBDA_NAME}.zip | openssl enc -base64 > ${LAMBDA_NAME}.zip.base64sha256
 
 publish:
+	echo ${LAMBDA_VERSION}
+	sleep 100
 	for env in ${ENVIRONMENTS}; do \
 		aws s3 cp ${LAMBDA_NAME}.zip s3://${BUCKET_NAME}-$${env}/${LAMBDA_NAME}/${LAMBDA_NAME}.${LAMBDA_VERSION}.zip --acl=bucket-owner-full-control ;\
 		aws s3 cp ${LAMBDA_NAME}.zip.base64sha256 s3://${BUCKET_NAME}-$${env}/${LAMBDA_NAME}/${LAMBDA_NAME}.${LAMBDA_VERSION}.zip.base64sha256 --content-type text/plain --acl=bucket-owner-full-control ;\
