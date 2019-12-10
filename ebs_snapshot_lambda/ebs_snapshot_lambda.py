@@ -12,8 +12,8 @@ from .aws_typings import LambdaDict
 logging.basicConfig(level=logging.INFO)
 
 
-ec2_client = boto3.client("ec2")
-ec2_resource = boto3.resource("ec2")
+ec2_client = boto3.client("ec2", region_name="eu-west-2")
+ec2_resource = boto3.resource("ec2", region_name="eu-west-2")
 
 
 def get_all_ebs_volumes(ec2_resource):
