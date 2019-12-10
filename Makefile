@@ -10,7 +10,7 @@ PYTHON_REQUIRED = 3.7.3
 BUCKET_NAME := mdtp-lambda-functions
 ENVIRONMENTS := management sandbox development qa staging integration externaltest production
 LAMBDA_NAME := aws-ebs-snapshot-lambda
-LAMBDA_VERSION := $(shell test -e .release-version && cat .release-version)
+LAMBDA_VERSION := $(shell cat .release-version)
 LATEST_TAG := $(shell git tag --sort=v:refname \
 	| grep -E "^[0-9]+\.[0-9]+\.[0-9]+" | tail -1 )
 TAG_MAJOR_NUMBER := $(shell echo $(LATEST_TAG) | cut -f 1 -d '.' )
