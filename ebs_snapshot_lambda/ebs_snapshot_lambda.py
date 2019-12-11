@@ -100,7 +100,7 @@ def wait_for_new_snapshot_to_become_available(
     sys.exit(1)
 
 
-def identify_stale_snapshots(component, ec2_client, snapshot_retention_count=0):
+def identify_stale_snapshots(component, ec2_client, snapshot_retention_count):
     try:
         component_snapshots = ec2_client.describe_snapshots(
             Filters=[{"Name": "tag:Name", "Values": [component]}]
@@ -114,8 +114,7 @@ def identify_stale_snapshots(component, ec2_client, snapshot_retention_count=0):
     sorted_component_snapshots = sorted(
         component_snapshots_data, key=lambda i: (i["StartTime"]), reverse=True
     )
-    snapshots_to_retain = snapshot_retention_count + 1
-    snapshots_to_remove = sorted_component_snapshots[snapshots_to_retain:]
+    snapshots_to_remove = sorted_component_snapshots[snapshot_retention_count:]
     return snapshots_to_remove
 
 
