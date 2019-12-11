@@ -424,7 +424,9 @@ def test_identify_stale_snapshots():
             ec2_resource=resource,
             ec2_client=client,
         )
-    identify_stale_snapshots(component="orchestrator", ec2_client=client)
+    identify_stale_snapshots(
+        component="orchestrator", ec2_client=client, snapshot_retention_count=1
+    )
 
 
 @mock.patch("boto3.client")
@@ -442,7 +444,9 @@ def test_identify_stale_snapshots_raises_system_exit_on_client_error(_, mock_cli
     )
     with LogCapture() as log_capture:
         with pytest.raises(SystemExit):
-            identify_stale_snapshots(component="foo", ec2_client=mock_client)
+            identify_stale_snapshots(
+                component="foo", ec2_client=mock_client, snapshot_retention_count=1
+            )
     log_capture.check(
         (
             "ebs_snapshot_lambda",
@@ -506,7 +510,7 @@ def test_delete_stale_snapshots():
             ec2_client=client,
         )
     snapshots_to_remove = identify_stale_snapshots(
-        component="orchestrator", ec2_client=client
+        component="orchestrator", ec2_client=client, snapshot_retention_count=1
     )
     snapshot_ids = []
 
@@ -603,7 +607,7 @@ def test_delete_stale_snapshots_no_snapshots_to_delete():
             ec2_client=client,
         )
     snapshots_to_remove = identify_stale_snapshots(
-        component="orchestrator", ec2_client=client
+        component="orchestrator", ec2_client=client, snapshot_retention_count=1
     )
     with LogCapture(level=logging.INFO) as log_capture:
         delete_stale_snapshots(
