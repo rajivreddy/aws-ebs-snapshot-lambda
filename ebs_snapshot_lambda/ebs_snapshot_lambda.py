@@ -8,6 +8,7 @@ from aws_typings import LambdaContext
 from aws_typings import LambdaDict
 from botocore.exceptions import ClientError
 
+# a
 logging.basicConfig(level=logging.INFO)
 
 
