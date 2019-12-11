@@ -4,10 +4,9 @@ import sys
 import time
 
 import boto3
+from aws_typings import LambdaContext
+from aws_typings import LambdaDict
 from botocore.exceptions import ClientError
-
-from .aws_typings import LambdaContext
-from .aws_typings import LambdaDict
 
 logging.basicConfig(level=logging.INFO)
 

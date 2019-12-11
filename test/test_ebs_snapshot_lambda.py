@@ -5,17 +5,14 @@ import boto3
 import botocore
 import pytest
 from botocore.exceptions import ClientError
+from ebs_snapshot_lambda import create_snapshot_from_ebs_volume
+from ebs_snapshot_lambda import delete_stale_snapshots
+from ebs_snapshot_lambda import get_all_ebs_volumes
+from ebs_snapshot_lambda import get_ebs_volume_id
+from ebs_snapshot_lambda import identify_stale_snapshots
+from ebs_snapshot_lambda import wait_for_new_snapshot_to_become_available
 from moto import mock_ec2
 from testfixtures import LogCapture
-
-from ebs_snapshot_lambda.ebs_snapshot_lambda import create_snapshot_from_ebs_volume
-from ebs_snapshot_lambda.ebs_snapshot_lambda import delete_stale_snapshots
-from ebs_snapshot_lambda.ebs_snapshot_lambda import get_all_ebs_volumes
-from ebs_snapshot_lambda.ebs_snapshot_lambda import get_ebs_volume_id
-from ebs_snapshot_lambda.ebs_snapshot_lambda import identify_stale_snapshots
-from ebs_snapshot_lambda.ebs_snapshot_lambda import (
-    wait_for_new_snapshot_to_become_available,
-)
 
 
 @mock_ec2
@@ -44,7 +41,7 @@ def test_get_all_ebs_volumes():
 
 
 @mock.patch("boto3.resource")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.get_all_ebs_volumes")
+@mock.patch("ebs_snapshot_lambda.get_all_ebs_volumes")
 def test_get_all_ebs_volumes_raises_system_exit_on_client_error(_, mock_resource):
     def get_all_volumes_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
@@ -215,7 +212,7 @@ def test_create_snapshot_from_ebs_volume():
     )
     with LogCapture(level=logging.INFO) as log_capture:
         with mock.patch(
-            "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+            "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
             return_value=True,
         ):
             create_snapshot_from_ebs_volume(
@@ -223,17 +220,16 @@ def test_create_snapshot_from_ebs_volume():
             )
 
 
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.boto3.resource")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.boto3.client")
+@mock.patch("ebs_snapshot_lambda.boto3.resource")
+@mock.patch("ebs_snapshot_lambda.boto3.client")
 def test_create_snapshot_from_ebs_volume_check_create_snapshot_calls_via_mock(
     mock_client, mock_resource
 ):
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.get_ebs_volume_id",
-        return_value="vol-123",
+        "ebs_snapshot_lambda.get_ebs_volume_id", return_value="vol-123"
     ) as mock_get_ebs_volume_id:
         with mock.patch(
-            "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+            "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
             return_value=True,
         ):
             create_snapshot_from_ebs_volume(
@@ -256,7 +252,7 @@ def test_create_snapshot_from_ebs_volume_check_create_snapshot_calls_via_mock(
 
 
 @mock.patch("boto3.resource")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.create_snapshot_from_ebs_volume")
+@mock.patch("ebs_snapshot_lambda.create_snapshot_from_ebs_volume")
 def test_create_snapshot_from_ebs_volume_raises_system_exit_on_client_error(
     _, mock_resource
 ):
@@ -382,7 +378,7 @@ def test_identify_stale_snapshots():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
@@ -406,7 +402,7 @@ def test_identify_stale_snapshots():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
@@ -419,7 +415,7 @@ def test_identify_stale_snapshots():
 
 
 @mock.patch("boto3.client")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.identify_stale_snapshots")
+@mock.patch("ebs_snapshot_lambda.identify_stale_snapshots")
 def test_identify_stale_snapshots_raises_system_exit_on_client_error(_, mock_client):
     def identify_stale_snapshots_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
@@ -463,7 +459,7 @@ def test_delete_stale_snapshots():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
@@ -487,7 +483,7 @@ def test_delete_stale_snapshots():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
@@ -516,7 +512,7 @@ def test_delete_stale_snapshots():
     )
 
 
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.boto3.client")
+@mock.patch("ebs_snapshot_lambda.boto3.client")
 def test_delete_stale_snapshots_delete_snapshot_calls_via_mock(mock_client):
     snapshots_to_remove = [{"SnapshotId": "snap-05fc368760b82218f"}]
     delete_stale_snapshots(
@@ -528,7 +524,7 @@ def test_delete_stale_snapshots_delete_snapshot_calls_via_mock(mock_client):
 
 
 @mock.patch("boto3.client")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.delete_stale_snapshots")
+@mock.patch("ebs_snapshot_lambda.delete_stale_snapshots")
 def test_delete_stale_snapshots_raises_system_exit_on_client_error(_, mock_client):
     def delete_stale_snapshots_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
@@ -576,7 +572,7 @@ def test_delete_stale_snapshots_no_snapshots_to_delete():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
