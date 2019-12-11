@@ -5,14 +5,15 @@ import boto3
 import botocore
 import pytest
 from botocore.exceptions import ClientError
+from moto import mock_ec2
+from testfixtures import LogCapture
+
 from ebs_snapshot_lambda import create_snapshot_from_ebs_volume
 from ebs_snapshot_lambda import delete_stale_snapshots
 from ebs_snapshot_lambda import get_all_ebs_volumes
 from ebs_snapshot_lambda import get_ebs_volume_id
 from ebs_snapshot_lambda import identify_stale_snapshots
 from ebs_snapshot_lambda import wait_for_new_snapshot_to_become_available
-from moto import mock_ec2
-from testfixtures import LogCapture
 
 
 @mock_ec2
