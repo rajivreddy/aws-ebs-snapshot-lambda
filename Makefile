@@ -73,7 +73,7 @@ security_checks:
 
 test: check_python
 	find . -type f -name '*.pyc' -delete
-	export PYTHONPATH="${PYTHONPATH}:`pwd`/ebs_snapshot_lambda" && ${VENV}/bin/pytest -v .
+	export PYTHONPATH="${PYTHONPATH}:`pwd`/" && ${VENV}/bin/pytest -v .
 
 typechecking: check_python
 	${VENV}/bin/mypy ./ebs_snapshot_lambda/
