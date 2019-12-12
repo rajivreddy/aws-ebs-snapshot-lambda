@@ -153,7 +153,8 @@ def get_password_from_ssm(ssm_client, parameter_name, error_handler):
 
 def send_slack_notification_and_exit(slack_notification):
     slack_notifications_password = get_password_from_ssm(
-        ssm_client=ssm_client, parameter_name="tbc"
+        ssm_client=ssm_client,
+        parameter_name="/ebs-snapshot-lambda/slack-notifications-password",
     )
     slack_notification.send_notification(
         slack_url="https://slack-notifications.tax.service.gov.uk/slack-notifications/notification",
