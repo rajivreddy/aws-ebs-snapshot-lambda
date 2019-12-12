@@ -24,20 +24,6 @@ black:
 	${VENV}/bin/black ./ebs_snapshot_lambda/
 	${VENV}/bin/black ./test/
 
-check_python:
-	@echo '*********** Checking for Python installation ***********'
-    ifeq ('$(PYTHON_OK)','')
-	    $(error python interpreter: 'python' not found!)
-    else
-	    @echo Found Python
-    endif
-	@echo '*********** Checking for Python version ***********'
-    ifneq ('$(PYTHON_REQUIRED)','$(PYTHON_VERSION)')
-	    $(error incorrect version of python found: '${PYTHON_VERSION}'. Expected '${PYTHON_REQUIRED}'!)
-    else
-	    @echo Found Python ${PYTHON_REQUIRED}
-    endif
-
 ci_build:
 	docker run --user `id -u`:`id -g` -v `pwd`:/src --workdir /src python-build-env make clean setup test security_checks package
 
@@ -65,7 +51,7 @@ publish:
 		aws s3 cp ${LAMBDA_NAME}.zip.base64sha256 s3://${BUCKET_NAME}-$${env}/${LAMBDA_NAME}/${LAMBDA_NAME}.${LAMBDA_VERSION}.zip.base64sha256 --content-type text/plain --acl=bucket-owner-full-control ;\
 	done
 
-setup: check_python
+setup:
 	@echo '**************** Creating virtualenv *******************'
 	python -m venv $(VENV)
 	${VENV}/bin/pip install --upgrade pip
@@ -82,10 +68,10 @@ security_checks:
 	${VENV}/bin/safety check
 	${VENV}/bin/bandit -r ./ebs_snapshot_lambda
 
-test: check_python
+test:
 	find . -type f -name '*.pyc' -delete
-	export PYTHONPATH="${PYTHONPATH}:`pwd`/" && ${VENV}/bin/pytest -v .
+	export PYTHONPATH="${PYTHONPATH}:`pwd`/ebs_snapshot_lambda" && ${VENV}/bin/pytest -v .
 
-typechecking: check_python
+typechecking:
 	${VENV}/bin/mypy ./ebs_snapshot_lambda/
 	${VENV}/bin/mypy ./test/
