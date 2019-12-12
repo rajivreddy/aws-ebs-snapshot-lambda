@@ -4,6 +4,7 @@
 
 SHELL = /bin/bash
 VENV ?= ./.aws-ebs-snapshot-lambda
+PYTHON_VERSION := $(shell python -V | cut -d' ' -f2)
 PYTHON_OK := $(shell type -P python)
 PYTHON_REQUIRED = 3.7.3
 .SUFFIXES:
@@ -84,7 +85,7 @@ security_checks:
 
 test: check_python
 	find . -type f -name '*.pyc' -delete
-	export PYTHONPATH="${PYTHONPATH}:`pwd`/" && ${VENV}/bin/pytest -v .
+	export PYTHONPATH="${PYTHONPATH}:`pwd`/ebs_snapshot_lambda" && ${VENV}/bin/pytest -v .
 
 typechecking: check_python
 	${VENV}/bin/mypy ./ebs_snapshot_lambda/
