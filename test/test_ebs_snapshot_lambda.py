@@ -8,14 +8,12 @@ from botocore.exceptions import ClientError
 from moto import mock_ec2
 from testfixtures import LogCapture
 
-from ebs_snapshot_lambda.ebs_snapshot_lambda import create_snapshot_from_ebs_volume
-from ebs_snapshot_lambda.ebs_snapshot_lambda import delete_stale_snapshots
-from ebs_snapshot_lambda.ebs_snapshot_lambda import get_all_ebs_volumes
-from ebs_snapshot_lambda.ebs_snapshot_lambda import get_ebs_volume_id
-from ebs_snapshot_lambda.ebs_snapshot_lambda import identify_stale_snapshots
-from ebs_snapshot_lambda.ebs_snapshot_lambda import (
-    wait_for_new_snapshot_to_become_available,
-)
+from ebs_snapshot_lambda import create_snapshot_from_ebs_volume
+from ebs_snapshot_lambda import delete_stale_snapshots
+from ebs_snapshot_lambda import get_all_ebs_volumes
+from ebs_snapshot_lambda import get_ebs_volume_id
+from ebs_snapshot_lambda import identify_stale_snapshots
+from ebs_snapshot_lambda import wait_for_new_snapshot_to_become_available
 
 
 @mock_ec2
@@ -44,7 +42,7 @@ def test_get_all_ebs_volumes():
 
 
 @mock.patch("boto3.resource")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.get_all_ebs_volumes")
+@mock.patch("ebs_snapshot_lambda.get_all_ebs_volumes")
 def test_get_all_ebs_volumes_raises_system_exit_on_client_error(_, mock_resource):
     def get_all_volumes_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
@@ -59,7 +57,7 @@ def test_get_all_ebs_volumes_raises_system_exit_on_client_error(_, mock_resource
             get_all_ebs_volumes(mock_resource)
     log_capture.check(
         (
-            "root",
+            "ebs_snapshot_lambda",
             "ERROR",
             "Unable to retrieve list of volumes: An error occurred (TestException) when "
             "calling the {'Test Exception'} operation: Test Exception",
@@ -119,7 +117,11 @@ def test_get_ebs_volume_id_from_multiple_volumes():
         )
         assert ebs_volume_id == orchestrator_volume_id
     log_capture.check(
-        ("root", "INFO", f"Retrieved EBS volume id of {orchestrator_volume_id}")
+        (
+            "ebs_snapshot_lambda",
+            "INFO",
+            f"Retrieved EBS volume id of {orchestrator_volume_id}",
+        )
     )
 
 
@@ -156,7 +158,11 @@ def test_get_ebs_volume_id_from_multiple_volumes_with_same_component_name():
         )
         assert ebs_volume_id == first_orchestrator_volume_id
     log_capture.check(
-        ("root", "INFO", f"Retrieved EBS volume id of {first_orchestrator_volume_id}")
+        (
+            "ebs_snapshot_lambda",
+            "INFO",
+            f"Retrieved EBS volume id of {first_orchestrator_volume_id}",
+        )
     )
 
 
@@ -165,7 +171,11 @@ def test_get_ebs_volume_id_raises_system_exit_on_unbound_local_error():
         with pytest.raises(SystemExit):
             get_ebs_volume_id(component="orchestrator", list_of_volumes=[])
     log_capture.check(
-        ("root", "ERROR", "No volume ID found for the orchestrator component")
+        (
+            "ebs_snapshot_lambda",
+            "ERROR",
+            "No volume ID found for the orchestrator component",
+        )
     )
 
 
@@ -215,7 +225,7 @@ def test_create_snapshot_from_ebs_volume():
     )
     with LogCapture(level=logging.INFO) as log_capture:
         with mock.patch(
-            "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+            "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
             return_value=True,
         ):
             create_snapshot_from_ebs_volume(
@@ -223,17 +233,16 @@ def test_create_snapshot_from_ebs_volume():
             )
 
 
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.boto3.resource")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.boto3.client")
+@mock.patch("ebs_snapshot_lambda.boto3.resource")
+@mock.patch("ebs_snapshot_lambda.boto3.client")
 def test_create_snapshot_from_ebs_volume_check_create_snapshot_calls_via_mock(
     mock_client, mock_resource
 ):
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.get_ebs_volume_id",
-        return_value="vol-123",
+        "ebs_snapshot_lambda.get_ebs_volume_id", return_value="vol-123"
     ) as mock_get_ebs_volume_id:
         with mock.patch(
-            "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+            "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
             return_value=True,
         ):
             create_snapshot_from_ebs_volume(
@@ -256,7 +265,7 @@ def test_create_snapshot_from_ebs_volume_check_create_snapshot_calls_via_mock(
 
 
 @mock.patch("boto3.resource")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.create_snapshot_from_ebs_volume")
+@mock.patch("ebs_snapshot_lambda.create_snapshot_from_ebs_volume")
 def test_create_snapshot_from_ebs_volume_raises_system_exit_on_client_error(
     _, mock_resource
 ):
@@ -281,7 +290,7 @@ def test_create_snapshot_from_ebs_volume_raises_system_exit_on_client_error(
             )
     log_capture.check(
         (
-            "root",
+            "ebs_snapshot_lambda",
             "ERROR",
             "Failed to create snapshot: An error occurred (TestException) when calling "
             "the {'Test Exception'} operation: Test Exception",
@@ -344,19 +353,19 @@ def test_wait_for_new_snapshot_to_become_available_reaches_max_retries():
             )
     log_capture.check(
         (
-            "root",
+            "ebs_snapshot_lambda",
             "INFO",
             "State is not yet in the desired state of invalid, retry_count=1",
         ),
-        ("root", "INFO", "Current state is: completed"),
+        ("ebs_snapshot_lambda", "INFO", "Current state is: completed"),
         (
-            "root",
+            "ebs_snapshot_lambda",
             "INFO",
             "State is not yet in the desired state of invalid, retry_count=2",
         ),
-        ("root", "INFO", "Current state is: completed"),
+        ("ebs_snapshot_lambda", "INFO", "Current state is: completed"),
         (
-            "root",
+            "ebs_snapshot_lambda",
             "ERROR",
             "Failed to create new orchestrator snapshot within timeout of 2 minutes",
         ),
@@ -382,7 +391,7 @@ def test_identify_stale_snapshots():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
@@ -406,7 +415,7 @@ def test_identify_stale_snapshots():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
@@ -415,11 +424,13 @@ def test_identify_stale_snapshots():
             ec2_resource=resource,
             ec2_client=client,
         )
-    identify_stale_snapshots(component="orchestrator", ec2_client=client)
+    identify_stale_snapshots(
+        component="orchestrator", ec2_client=client, snapshot_retention_count=1
+    )
 
 
 @mock.patch("boto3.client")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.identify_stale_snapshots")
+@mock.patch("ebs_snapshot_lambda.identify_stale_snapshots")
 def test_identify_stale_snapshots_raises_system_exit_on_client_error(_, mock_client):
     def identify_stale_snapshots_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
@@ -433,10 +444,12 @@ def test_identify_stale_snapshots_raises_system_exit_on_client_error(_, mock_cli
     )
     with LogCapture() as log_capture:
         with pytest.raises(SystemExit):
-            identify_stale_snapshots(component="foo", ec2_client=mock_client)
+            identify_stale_snapshots(
+                component="foo", ec2_client=mock_client, snapshot_retention_count=1
+            )
     log_capture.check(
         (
-            "root",
+            "ebs_snapshot_lambda",
             "ERROR",
             "Failed to obtain snapshots data: An error occurred (TestException) when "
             "calling the {'Test Exception'} operation: Test Exception",
@@ -463,7 +476,7 @@ def test_delete_stale_snapshots():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
@@ -487,7 +500,7 @@ def test_delete_stale_snapshots():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
@@ -497,7 +510,7 @@ def test_delete_stale_snapshots():
             ec2_client=client,
         )
     snapshots_to_remove = identify_stale_snapshots(
-        component="orchestrator", ec2_client=client
+        component="orchestrator", ec2_client=client, snapshot_retention_count=1
     )
     snapshot_ids = []
 
@@ -511,12 +524,20 @@ def test_delete_stale_snapshots():
             ec2_client=client, snapshots_to_remove=snapshots_to_remove
         )
     log_capture.check(
-        ("root", "INFO", f"Attempting to delete snapshot {snapshot_ids[0]}"),
-        ("root", "INFO", f"Successfully deleted snapshot {snapshot_ids[0]}"),
+        (
+            "ebs_snapshot_lambda",
+            "INFO",
+            f"Attempting to delete snapshot {snapshot_ids[0]}",
+        ),
+        (
+            "ebs_snapshot_lambda",
+            "INFO",
+            f"Successfully deleted snapshot {snapshot_ids[0]}",
+        ),
     )
 
 
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.boto3.client")
+@mock.patch("ebs_snapshot_lambda.boto3.client")
 def test_delete_stale_snapshots_delete_snapshot_calls_via_mock(mock_client):
     snapshots_to_remove = [{"SnapshotId": "snap-05fc368760b82218f"}]
     delete_stale_snapshots(
@@ -528,7 +549,7 @@ def test_delete_stale_snapshots_delete_snapshot_calls_via_mock(mock_client):
 
 
 @mock.patch("boto3.client")
-@mock.patch("ebs_snapshot_lambda.ebs_snapshot_lambda.delete_stale_snapshots")
+@mock.patch("ebs_snapshot_lambda.delete_stale_snapshots")
 def test_delete_stale_snapshots_raises_system_exit_on_client_error(_, mock_client):
     def delete_stale_snapshots_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
@@ -547,9 +568,9 @@ def test_delete_stale_snapshots_raises_system_exit_on_client_error(_, mock_clien
                 snapshots_to_remove=[{"SnapshotId": "snap-f89214e2"}],
             )
     log_capture.check(
-        ("root", "INFO", "Attempting to delete snapshot snap-f89214e2"),
+        ("ebs_snapshot_lambda", "INFO", "Attempting to delete snapshot snap-f89214e2"),
         (
-            "root",
+            "ebs_snapshot_lambda",
             "ERROR",
             "Failed to remove snapshot: An error occurred (TestException) when calling "
             "the {'Test Exception'} operation: Test Exception",
@@ -576,7 +597,7 @@ def test_delete_stale_snapshots_no_snapshots_to_delete():
         component="orchestrator", list_of_volumes=list_of_volumes
     )
     with mock.patch(
-        "ebs_snapshot_lambda.ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
+        "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
         return_value=True,
     ):
         create_snapshot_from_ebs_volume(
@@ -586,10 +607,10 @@ def test_delete_stale_snapshots_no_snapshots_to_delete():
             ec2_client=client,
         )
     snapshots_to_remove = identify_stale_snapshots(
-        component="orchestrator", ec2_client=client
+        component="orchestrator", ec2_client=client, snapshot_retention_count=1
     )
     with LogCapture(level=logging.INFO) as log_capture:
         delete_stale_snapshots(
             ec2_client=client, snapshots_to_remove=snapshots_to_remove
         )
-    log_capture.check(("root", "INFO", "No snapshots to delete"))
+    log_capture.check(("ebs_snapshot_lambda", "INFO", "No snapshots to delete"))
