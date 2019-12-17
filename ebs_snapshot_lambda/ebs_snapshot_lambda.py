@@ -172,30 +172,33 @@ def lambda_handler(event: LambdaDict, context: LambdaContext):
     component = os.getenv("component")
     snapshot_retention_count = int(os.getenv("snapshot_retention_count"))
     slack_notification = SlackNotificationSetup()
-    error_handler = send_slack_notification_and_exit(slack_notification)
+    # Temporarily ensuring we call error handler by design - this will trigger a slack notification and sysexit
+    send_slack_notification_and_exit(slack_notification)
+    # nothing else should be called
     list_of_volumes = get_all_ebs_volumes(
-        ec2_resource=ec2_resource, error_handler=error_handler
+        ec2_resource=ec2_resource,
+        error_handler=send_slack_notification_and_exit(slack_notification),
     )
     ebs_volume_id = get_ebs_volume_id(
         component=component,
         list_of_volumes=list_of_volumes,
-        error_handler=error_handler,
+        error_handler=send_slack_notification_and_exit(slack_notification),
     )
     create_snapshot_from_ebs_volume(
         component=component,
         ebs_volume_id=ebs_volume_id,
         ec2_resource=ec2_resource,
         ec2_client=ec2_client,
-        error_handler=error_handler,
+        error_handler=send_slack_notification_and_exit(slack_notification),
     )
     snapshots_to_remove = identify_stale_snapshots(
         component=component,
         ec2_client=ec2_client,
-        error_handler=error_handler,
+        error_handler=send_slack_notification_and_exit(slack_notification),
         snapshot_retention_count=snapshot_retention_count,
     )
     delete_stale_snapshots(
         ec2_client=ec2_client,
         snapshots_to_remove=snapshots_to_remove,
-        error_handler=error_handler,
+        error_handler=send_slack_notification_and_exit(slack_notification),
     )
