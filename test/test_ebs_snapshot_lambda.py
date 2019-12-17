@@ -30,7 +30,7 @@ def test_get_all_ebs_volumes():
             }
         ],
     )
-    ebs_volumes = get_all_ebs_volumes(resource)
+    ebs_volumes = get_all_ebs_volumes(resource, "foo")
     volume_id = single_volume["VolumeId"]
     list_of_ebs_volumes = []
 
@@ -54,7 +54,7 @@ def test_get_all_ebs_volumes_raises_system_exit_on_client_error(_, mock_resource
     mock_resource().volumes.all.side_effect = get_all_volumes_side_effect_client_error
     with LogCapture() as log_capture:
         with pytest.raises(SystemExit):
-            get_all_ebs_volumes(mock_resource)
+            get_all_ebs_volumes(mock_resource, "foo")
     log_capture.check(
         (
             "ebs_snapshot_lambda",
@@ -80,7 +80,7 @@ def test_get_ebs_volume_id():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     get_ebs_volume_id(component="orchestrator", list_of_volumes=list_of_volumes)
 
 
@@ -109,7 +109,7 @@ def test_get_ebs_volume_id_from_multiple_volumes():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     orchestrator_volume_id = orchestrator_volume["VolumeId"]
     with LogCapture(level=logging.INFO) as log_capture:
         ebs_volume_id = get_ebs_volume_id(
@@ -150,7 +150,7 @@ def test_get_ebs_volume_id_from_multiple_volumes_with_same_component_name():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     first_orchestrator_volume_id = first_orchestrator_volume["VolumeId"]
     with LogCapture(level=logging.INFO) as log_capture:
         ebs_volume_id = get_ebs_volume_id(
@@ -201,7 +201,7 @@ def test_get_ebs_volume_id_continues_on_key_error():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     get_ebs_volume_id(component="orchestrator", list_of_volumes=list_of_volumes)
 
 
@@ -219,7 +219,7 @@ def test_create_snapshot_from_ebs_volume():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     ebs_volume_id = get_ebs_volume_id(
         component="orchestrator", list_of_volumes=list_of_volumes
     )
@@ -312,7 +312,7 @@ def test_wait_for_new_snapshot_to_become_available():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     ebs_volume_id = get_ebs_volume_id(
         component="orchestrator", list_of_volumes=list_of_volumes
     )
@@ -336,7 +336,7 @@ def test_wait_for_new_snapshot_to_become_available_reaches_max_retries():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     ebs_volume_id = get_ebs_volume_id(
         component="orchestrator", list_of_volumes=list_of_volumes
     )
@@ -386,7 +386,7 @@ def test_identify_stale_snapshots():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     ebs_volume_id = get_ebs_volume_id(
         component="orchestrator", list_of_volumes=list_of_volumes
     )
@@ -410,7 +410,7 @@ def test_identify_stale_snapshots():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     ebs_volume_id = get_ebs_volume_id(
         component="orchestrator", list_of_volumes=list_of_volumes
     )
@@ -471,7 +471,7 @@ def test_delete_stale_snapshots():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     ebs_volume_id = get_ebs_volume_id(
         component="orchestrator", list_of_volumes=list_of_volumes
     )
@@ -495,7 +495,7 @@ def test_delete_stale_snapshots():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     ebs_volume_id = get_ebs_volume_id(
         component="orchestrator", list_of_volumes=list_of_volumes
     )
@@ -592,7 +592,7 @@ def test_delete_stale_snapshots_no_snapshots_to_delete():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
     ebs_volume_id = get_ebs_volume_id(
         component="orchestrator", list_of_volumes=list_of_volumes
     )
