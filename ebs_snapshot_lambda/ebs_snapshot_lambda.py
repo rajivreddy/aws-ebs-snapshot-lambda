@@ -139,7 +139,7 @@ def delete_stale_snapshots(ec2_client, snapshots_to_remove, error_handler):
                 error_handler()
 
 
-def get_password_from_ssm(ssm_client, parameter_name, error_handler):
+def get_password_from_ssm(ssm_client, parameter_name):
     try:
         ssm_response = ssm_client.get_parameter(
             Name=parameter_name, WithDecryption=True
@@ -147,7 +147,7 @@ def get_password_from_ssm(ssm_client, parameter_name, error_handler):
         password = ssm_response["Parameter"]["Value"]
     except ssm_client.exceptions.ParameterNotFound:
         LOGGER.warning("{} does not exist in ssm".format(parameter_name))
-        error_handler()
+        sys.exit(1)
     return password
 
 
