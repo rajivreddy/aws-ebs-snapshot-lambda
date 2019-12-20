@@ -66,7 +66,7 @@ class SlackNotification(object):
             "channelLookup": {"by": "slack-channel", "slackChannels": [slack_channel]},
             "messageDetails": {
                 "text": "Encountered failure when running ebs-snapshot-lambda",
-                "username": "build-and-deploy-apm",
+                "username": "ebs-snapshot-lambda",
                 "attachments": [
                     {
                         "fallback": "Encountered failure when running ebs-snapshot-lambda",

@@ -4,7 +4,7 @@ node {
     step([$class: 'WsCleanup'])
     final scmVars = checkout(
       [$class: 'GitSCM',
-       branches: [[name: '*/slack-notifications']],
+       branches: [[name: '*/master']],
        doGenerateSubmoduleConfigurations: false,
        extensions: [
         [$class: 'CloneOption', depth: 0, noTags: false, reference: '', shallow: false]],
