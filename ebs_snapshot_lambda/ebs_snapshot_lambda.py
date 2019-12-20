@@ -6,6 +6,7 @@ import time
 import boto3
 from aws_typings import LambdaContext
 from aws_typings import LambdaDict
+from slack_notifications import SlackNotificationSetup
 from botocore.exceptions import ClientError
 
 LOGGER = logging.getLogger(__name__)
@@ -14,18 +15,19 @@ LOGGER.setLevel(logging.INFO)
 
 ec2_client = boto3.client("ec2", region_name="eu-west-2")
 ec2_resource = boto3.resource("ec2", region_name="eu-west-2")
+ssm_client = boto3.client("ssm", region_name="eu-west-2")
 
 
-def get_all_ebs_volumes(ec2_resource):
+def get_all_ebs_volumes(ec2_resource, error_handler):
     try:
         list_of_volumes = ec2_resource.volumes.all()
         return list_of_volumes
     except ClientError as botocore_exception:
         LOGGER.error(f"Unable to retrieve list of volumes: {botocore_exception}")
-        sys.exit(1)
+        error_handler()
 
 
-def get_ebs_volume_id(component, list_of_volumes):
+def get_ebs_volume_id(component, list_of_volumes, error_handler):
     for volume in list_of_volumes:
         if volume.tags is None:
             continue
@@ -40,10 +42,12 @@ def get_ebs_volume_id(component, list_of_volumes):
                 continue
 
     LOGGER.error("No volume ID found for the orchestrator component")
-    sys.exit(1)
+    error_handler()
 
 
-def create_snapshot_from_ebs_volume(component, ebs_volume_id, ec2_resource, ec2_client):
+def create_snapshot_from_ebs_volume(
+    component, ebs_volume_id, ec2_resource, ec2_client, error_handler
+):
     try:
         snapshot_id = ec2_resource.create_snapshot(
             Description=f"Snapshot from {component} ebs volume {ebs_volume_id}",
@@ -57,7 +61,7 @@ def create_snapshot_from_ebs_volume(component, ebs_volume_id, ec2_resource, ec2_
         )
     except ClientError as botocore_exception:
         LOGGER.error(f"Failed to create snapshot: {botocore_exception}")
-        sys.exit(1)
+        error_handler()
 
     LOGGER.info(f"Created new snapshot id of {snapshot_id.id}")
 
@@ -67,12 +71,13 @@ def create_snapshot_from_ebs_volume(component, ebs_volume_id, ec2_resource, ec2_
         )
     except ClientError as botocore_exception:
         LOGGER.error(f"Failed to check snapshot status: {botocore_exception}")
-        sys.exit(1)
+        error_handler()
 
 
 def wait_for_new_snapshot_to_become_available(
     component,
     ec2_client,
+    error_handler,
     snapshot_id,
     desired_state="completed",
     max_retries=45,
@@ -97,17 +102,19 @@ def wait_for_new_snapshot_to_become_available(
     LOGGER.error(
         f"Failed to create new {component} snapshot within timeout of {max_retries} minutes"
     )
-    sys.exit(1)
+    error_handler()
 
 
-def identify_stale_snapshots(component, ec2_client, snapshot_retention_count):
+def identify_stale_snapshots(
+    component, ec2_client, snapshot_retention_count, error_handler
+):
     try:
         component_snapshots = ec2_client.describe_snapshots(
             Filters=[{"Name": "tag:Name", "Values": [component]}]
         )
     except ClientError as botocore_exception:
         LOGGER.error(f"Failed to obtain snapshots data: {botocore_exception}")
-        sys.exit(1)
+        error_handler()
 
     component_snapshots_data = component_snapshots["Snapshots"]
 
@@ -118,7 +125,7 @@ def identify_stale_snapshots(component, ec2_client, snapshot_retention_count):
     return snapshots_to_remove
 
 
-def delete_stale_snapshots(ec2_client, snapshots_to_remove):
+def delete_stale_snapshots(ec2_client, snapshots_to_remove, error_handler):
     if len(snapshots_to_remove) == 0:
         LOGGER.info("No snapshots to delete")
     else:
@@ -129,7 +136,36 @@ def delete_stale_snapshots(ec2_client, snapshots_to_remove):
                 LOGGER.info(f"Successfully deleted snapshot {snapshot['SnapshotId']}")
             except ClientError as botocore_exception:
                 LOGGER.error(f"Failed to remove snapshot: {botocore_exception}")
-                sys.exit(1)
+                error_handler()
+
+
+def get_password_from_ssm(ssm_client, parameter_name):
+    LOGGER.info("About to perform get parameter query on ssm client")
+    try:
+        LOGGER.info("...")
+        ssm_response = ssm_client.get_parameter(
+            Name=parameter_name, WithDecryption=True
+        )
+        LOGGER.info("Retrieved parameter, filtering for value...")
+        password = ssm_response["Parameter"]["Value"]
+    except ssm_client.exceptions.ParameterNotFound:
+        LOGGER.warning("{} does not exist in ssm".format(parameter_name))
+        sys.exit(1)
+    return password
+
+
+def send_slack_notification_and_exit(slack_notification):
+    slack_notifications_password = get_password_from_ssm(
+        ssm_client=ssm_client,
+        parameter_name="/ebs-snapshot-lambda/slack-notifications-password",
+    )
+    slack_notification.send_notification(
+        slack_url="https://slack-notifications.tax.service.gov.uk/slack-notifications/notification",
+        slack_notifications_password=slack_notifications_password,
+        slack_channel="alerts-build-deploy",
+    )
+    LOGGER.info("Slack notification sent, exiting...")
+    sys.exit(1)
 
 
 def lambda_handler(event: LambdaDict, context: LambdaContext):
@@ -139,21 +175,31 @@ def lambda_handler(event: LambdaDict, context: LambdaContext):
     """
     component = os.getenv("component")
     snapshot_retention_count = int(os.getenv("snapshot_retention_count"))
-    list_of_volumes = get_all_ebs_volumes(ec2_resource=ec2_resource)
+    slack_notification = SlackNotificationSetup()
+    list_of_volumes = get_all_ebs_volumes(
+        ec2_resource=ec2_resource,
+        error_handler=send_slack_notification_and_exit(slack_notification),
+    )
     ebs_volume_id = get_ebs_volume_id(
-        component=component, list_of_volumes=list_of_volumes
+        component=component,
+        list_of_volumes=list_of_volumes,
+        error_handler=send_slack_notification_and_exit(slack_notification),
     )
     create_snapshot_from_ebs_volume(
         component=component,
         ebs_volume_id=ebs_volume_id,
         ec2_resource=ec2_resource,
         ec2_client=ec2_client,
+        error_handler=send_slack_notification_and_exit(slack_notification),
     )
     snapshots_to_remove = identify_stale_snapshots(
         component=component,
         ec2_client=ec2_client,
+        error_handler=send_slack_notification_and_exit(slack_notification),
         snapshot_retention_count=snapshot_retention_count,
     )
     delete_stale_snapshots(
-        ec2_client=ec2_client, snapshots_to_remove=snapshots_to_remove
+        ec2_client=ec2_client,
+        snapshots_to_remove=snapshots_to_remove,
+        error_handler=send_slack_notification_and_exit(slack_notification),
     )

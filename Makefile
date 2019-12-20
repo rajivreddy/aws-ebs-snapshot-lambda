@@ -55,6 +55,7 @@ install: setup setup_git_hooks
 package: bumpversion
 	cd ebs_snapshot_lambda && zip ../${LAMBDA_NAME}.zip ./aws_typings.py
 	cd ebs_snapshot_lambda && zip ../${LAMBDA_NAME}.zip ./ebs_snapshot_lambda.py
+	cd ebs_snapshot_lambda && zip ../${LAMBDA_NAME}.zip ./slack_notifications.py
 	mkdir -p pip_lambda_packages
 	pip install -t pip_lambda_packages -r requirements.txt
 	cd pip_lambda_packages && zip -r ../${LAMBDA_NAME}.zip .
