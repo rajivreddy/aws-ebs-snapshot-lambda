@@ -67,7 +67,10 @@ def create_snapshot_from_ebs_volume(
 
     try:
         wait_for_new_snapshot_to_become_available(
-            component=component, ec2_client=ec2_client, snapshot_id=snapshot_id.id
+            component=component,
+            ec2_client=ec2_client,
+            snapshot_id=snapshot_id.id,
+            slack_notification_setup=slack_notification_setup,
         )
     except ClientError as botocore_exception:
         LOGGER.error(f"Failed to check snapshot status: {botocore_exception}")
