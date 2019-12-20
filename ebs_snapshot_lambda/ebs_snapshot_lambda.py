@@ -152,15 +152,18 @@ def get_password_from_ssm(ssm_client, parameter_name):
 
 
 def send_slack_notification_and_exit(slack_notification):
+    LOGGER.info("Attempting to get notification from slack")
     slack_notifications_password = get_password_from_ssm(
         ssm_client=ssm_client,
         parameter_name="/ebs-snapshot-lambda/slack-notifications-password",
     )
+    LOGGER.info("Retrieved password, attempting to send notification")
     slack_notification.send_notification(
         slack_url="https://slack-notifications.tax.service.gov.uk/slack-notifications/notification",
         slack_notifications_password=slack_notifications_password,
-        slack_channel="alerts-build-deploy",
+        slack_channel="pbd-2007-test",
     )
+    LOGGER.info("Slack notification sent, exiting...")
     sys.exit(1)
 
 
@@ -169,6 +172,7 @@ def lambda_handler(event: LambdaDict, context: LambdaContext):
     Creates a snapshot for a given component, using the appropriate volume ID. Also checks for and removes
     any stale snapshots for the given component
     """
+    LOGGER.info("Starting...")
     component = os.getenv("component")
     snapshot_retention_count = int(os.getenv("snapshot_retention_count"))
     slack_notification = SlackNotificationSetup()

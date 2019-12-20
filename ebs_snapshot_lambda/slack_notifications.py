@@ -14,6 +14,7 @@ class SlackNotificationSetup(object):
 
     def send_notification(self, slack_url, slack_notifications_password, slack_channel):
         slack_client = SlackNotification()
+        logger.info("About to trigger create_ebs_snapshot_lambda_failure_notification")
         slack_client.create_ebs_snapshot_lambda_failure_notification(
             uri=slack_url,
             slack_notifications_password=slack_notifications_password,
@@ -28,12 +29,13 @@ class SlackNotification(object):
     ):
         slack_notifications_username = "ebs-snapshot-lambda"
         slack_notifications_password = slack_notifications_password
+        logger.info("Go")
 
         try:
             response = requests.post(
                 url=uri,
                 json=payload,
-                headers={"Accepts": "application/json"},
+                headers={"Content-type": "application/json"},
                 timeout=10,
                 auth=requests.auth.HTTPBasicAuth(
                     slack_notifications_username, slack_notifications_password
@@ -62,6 +64,7 @@ class SlackNotification(object):
     def create_ebs_snapshot_lambda_failure_notification(
         self, uri, slack_notifications_password, slack_channel, color="#ff0000"
     ):
+        logger.info("Creating payload")
         payload = {
             "channelLookup": {"by": "slack-channel", "slackChannels": [slack_channel]},
             "messageDetails": {
@@ -84,6 +87,7 @@ class SlackNotification(object):
                 ],
             },
         }
+        logger.info("About to post request to slack")
         return self.post_request_to_slack(
             uri=uri,
             payload=payload,
