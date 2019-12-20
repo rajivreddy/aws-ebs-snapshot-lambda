@@ -4,6 +4,7 @@ from unittest import mock
 import boto3
 import botocore
 import pytest
+import sys
 from botocore.exceptions import ClientError
 from moto import mock_ec2
 from testfixtures import LogCapture
@@ -17,7 +18,8 @@ from ebs_snapshot_lambda import wait_for_new_snapshot_to_become_available
 
 
 @mock_ec2
-def test_get_all_ebs_volumes():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_get_all_ebs_volumes(mock_send_notification):
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
     single_volume = client.create_volume(
@@ -30,7 +32,7 @@ def test_get_all_ebs_volumes():
             }
         ],
     )
-    ebs_volumes = get_all_ebs_volumes(resource)
+    ebs_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     volume_id = single_volume["VolumeId"]
     list_of_ebs_volumes = []
 
@@ -42,8 +44,13 @@ def test_get_all_ebs_volumes():
 
 
 @mock.patch("boto3.resource")
+@mock.patch(
+    "ebs_snapshot_lambda.send_slack_notification_and_exit", side_effect=SystemExit
+)
 @mock.patch("ebs_snapshot_lambda.get_all_ebs_volumes")
-def test_get_all_ebs_volumes_raises_system_exit_on_client_error(_, mock_resource):
+def test_get_all_ebs_volumes_raises_system_exit_on_client_error(
+    _, mock_send_notification, mock_resource
+):
     def get_all_volumes_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
             {"Error": {"Code": "TestException", "Message": "Test Exception"}},
@@ -54,7 +61,7 @@ def test_get_all_ebs_volumes_raises_system_exit_on_client_error(_, mock_resource
     mock_resource().volumes.all.side_effect = get_all_volumes_side_effect_client_error
     with LogCapture() as log_capture:
         with pytest.raises(SystemExit):
-            get_all_ebs_volumes(mock_resource)
+            get_all_ebs_volumes(mock_resource, mock_send_notification)
     log_capture.check(
         (
             "ebs_snapshot_lambda",
@@ -66,7 +73,8 @@ def test_get_all_ebs_volumes_raises_system_exit_on_client_error(_, mock_resource
 
 
 @mock_ec2
-def test_get_ebs_volume_id():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_get_ebs_volume_id(mock_send_notification):
     # Given
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
@@ -80,12 +88,17 @@ def test_get_ebs_volume_id():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
-    get_ebs_volume_id(component="orchestrator", list_of_volumes=list_of_volumes)
+    list_of_volumes = get_all_ebs_volumes(resource, "foo")
+    get_ebs_volume_id(
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
+    )
 
 
 @mock_ec2
-def test_get_ebs_volume_id_from_multiple_volumes():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_get_ebs_volume_id_from_multiple_volumes(mock_send_notification):
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
     orchestrator_volume = client.create_volume(
@@ -109,11 +122,13 @@ def test_get_ebs_volume_id_from_multiple_volumes():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     orchestrator_volume_id = orchestrator_volume["VolumeId"]
     with LogCapture(level=logging.INFO) as log_capture:
         ebs_volume_id = get_ebs_volume_id(
-            component="orchestrator", list_of_volumes=list_of_volumes
+            component="orchestrator",
+            list_of_volumes=list_of_volumes,
+            error_handler=mock_send_notification,
         )
         assert ebs_volume_id == orchestrator_volume_id
     log_capture.check(
@@ -126,7 +141,10 @@ def test_get_ebs_volume_id_from_multiple_volumes():
 
 
 @mock_ec2
-def test_get_ebs_volume_id_from_multiple_volumes_with_same_component_name():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_get_ebs_volume_id_from_multiple_volumes_with_same_component_name(
+    mock_send_notification
+):
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
     first_orchestrator_volume = client.create_volume(
@@ -150,11 +168,13 @@ def test_get_ebs_volume_id_from_multiple_volumes_with_same_component_name():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     first_orchestrator_volume_id = first_orchestrator_volume["VolumeId"]
     with LogCapture(level=logging.INFO) as log_capture:
         ebs_volume_id = get_ebs_volume_id(
-            component="orchestrator", list_of_volumes=list_of_volumes
+            component="orchestrator",
+            list_of_volumes=list_of_volumes,
+            error_handler=mock_send_notification,
         )
         assert ebs_volume_id == first_orchestrator_volume_id
     log_capture.check(
@@ -166,10 +186,19 @@ def test_get_ebs_volume_id_from_multiple_volumes_with_same_component_name():
     )
 
 
-def test_get_ebs_volume_id_raises_system_exit_on_unbound_local_error():
+@mock.patch(
+    "ebs_snapshot_lambda.send_slack_notification_and_exit", side_effect=SystemExit
+)
+def test_get_ebs_volume_id_raises_system_exit_on_unbound_local_error(
+    mock_send_notification
+):
     with LogCapture() as log_capture:
         with pytest.raises(SystemExit):
-            get_ebs_volume_id(component="orchestrator", list_of_volumes=[])
+            get_ebs_volume_id(
+                component="orchestrator",
+                list_of_volumes=[],
+                error_handler=mock_send_notification,
+            )
     log_capture.check(
         (
             "ebs_snapshot_lambda",
@@ -180,7 +209,8 @@ def test_get_ebs_volume_id_raises_system_exit_on_unbound_local_error():
 
 
 @mock_ec2
-def test_get_ebs_volume_id_continues_on_key_error():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_get_ebs_volume_id_continues_on_key_error(mock_send_notification):
     # Given
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
@@ -201,12 +231,17 @@ def test_get_ebs_volume_id_continues_on_key_error():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
-    get_ebs_volume_id(component="orchestrator", list_of_volumes=list_of_volumes)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
+    get_ebs_volume_id(
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
+    )
 
 
 @mock_ec2
-def test_create_snapshot_from_ebs_volume():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_create_snapshot_from_ebs_volume(mock_send_notification):
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
     client.create_volume(
@@ -219,9 +254,11 @@ def test_create_snapshot_from_ebs_volume():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     ebs_volume_id = get_ebs_volume_id(
-        component="orchestrator", list_of_volumes=list_of_volumes
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
     )
     with LogCapture(level=logging.INFO) as log_capture:
         with mock.patch(
@@ -229,14 +266,15 @@ def test_create_snapshot_from_ebs_volume():
             return_value=True,
         ):
             create_snapshot_from_ebs_volume(
-                "orchestrator", ebs_volume_id, resource, client
+                "orchestrator", ebs_volume_id, resource, client, mock_send_notification
             )
 
 
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
 @mock.patch("ebs_snapshot_lambda.boto3.resource")
 @mock.patch("ebs_snapshot_lambda.boto3.client")
 def test_create_snapshot_from_ebs_volume_check_create_snapshot_calls_via_mock(
-    mock_client, mock_resource
+    mock_client, mock_resource, mock_send_notification
 ):
     with mock.patch(
         "ebs_snapshot_lambda.get_ebs_volume_id", return_value="vol-123"
@@ -250,6 +288,7 @@ def test_create_snapshot_from_ebs_volume_check_create_snapshot_calls_via_mock(
                 mock_get_ebs_volume_id.return_value,
                 mock_resource,
                 mock_client,
+                mock_send_notification,
             )
             assert mock_resource.create_snapshot.call_count is 1
             mock_resource.create_snapshot.assert_called_with(
@@ -264,10 +303,13 @@ def test_create_snapshot_from_ebs_volume_check_create_snapshot_calls_via_mock(
             )
 
 
+@mock.patch(
+    "ebs_snapshot_lambda.send_slack_notification_and_exit", side_effect=SystemExit
+)
 @mock.patch("boto3.resource")
 @mock.patch("ebs_snapshot_lambda.create_snapshot_from_ebs_volume")
 def test_create_snapshot_from_ebs_volume_raises_system_exit_on_client_error(
-    _, mock_resource
+    _, mock_resource, mock_send_notification
 ):
     def create_snapshot_from_ebs_volume_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
@@ -287,6 +329,7 @@ def test_create_snapshot_from_ebs_volume_raises_system_exit_on_client_error(
                 ebs_volume_id="vol-123456",
                 ec2_resource=mock_resource,
                 ec2_client=client,
+                error_handler=mock_send_notification,
             )
     log_capture.check(
         (
@@ -299,7 +342,8 @@ def test_create_snapshot_from_ebs_volume_raises_system_exit_on_client_error(
 
 
 @mock_ec2
-def test_wait_for_new_snapshot_to_become_available():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_wait_for_new_snapshot_to_become_available(mock_send_notification):
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
     client.create_volume(
@@ -312,18 +356,28 @@ def test_wait_for_new_snapshot_to_become_available():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     ebs_volume_id = get_ebs_volume_id(
-        component="orchestrator", list_of_volumes=list_of_volumes
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
     )
     snapshot_id = resource.create_snapshot(VolumeId=ebs_volume_id)
     wait_for_new_snapshot_to_become_available(
-        component="orchestrator", ec2_client=client, snapshot_id=snapshot_id.id
+        component="orchestrator",
+        ec2_client=client,
+        snapshot_id=snapshot_id.id,
+        error_handler=mock_send_notification,
     )
 
 
 @mock_ec2
-def test_wait_for_new_snapshot_to_become_available_reaches_max_retries():
+@mock.patch(
+    "ebs_snapshot_lambda.send_slack_notification_and_exit", side_effect=SystemExit
+)
+def test_wait_for_new_snapshot_to_become_available_reaches_max_retries(
+    mock_send_notification
+):
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
     client.create_volume(
@@ -336,9 +390,11 @@ def test_wait_for_new_snapshot_to_become_available_reaches_max_retries():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     ebs_volume_id = get_ebs_volume_id(
-        component="orchestrator", list_of_volumes=list_of_volumes
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
     )
     snapshot_id = resource.create_snapshot(VolumeId=ebs_volume_id)
     with LogCapture(level=logging.INFO) as log_capture:
@@ -350,6 +406,7 @@ def test_wait_for_new_snapshot_to_become_available_reaches_max_retries():
                 desired_state="invalid",
                 max_retries=2,
                 timeout=1,
+                error_handler=mock_send_notification,
             )
     log_capture.check(
         (
@@ -373,7 +430,8 @@ def test_wait_for_new_snapshot_to_become_available_reaches_max_retries():
 
 
 @mock_ec2
-def test_identify_stale_snapshots():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_identify_stale_snapshots(mock_send_notification):
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
     client.create_volume(
@@ -386,9 +444,11 @@ def test_identify_stale_snapshots():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     ebs_volume_id = get_ebs_volume_id(
-        component="orchestrator", list_of_volumes=list_of_volumes
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
     )
     with mock.patch(
         "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
@@ -399,6 +459,7 @@ def test_identify_stale_snapshots():
             ebs_volume_id=ebs_volume_id,
             ec2_resource=resource,
             ec2_client=client,
+            error_handler=mock_send_notification,
         )
     client.create_volume(
         Size=10,
@@ -410,9 +471,11 @@ def test_identify_stale_snapshots():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     ebs_volume_id = get_ebs_volume_id(
-        component="orchestrator", list_of_volumes=list_of_volumes
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
     )
     with mock.patch(
         "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
@@ -423,15 +486,24 @@ def test_identify_stale_snapshots():
             ebs_volume_id=ebs_volume_id,
             ec2_resource=resource,
             ec2_client=client,
+            error_handler=mock_send_notification,
         )
     identify_stale_snapshots(
-        component="orchestrator", ec2_client=client, snapshot_retention_count=1
+        component="orchestrator",
+        ec2_client=client,
+        snapshot_retention_count=1,
+        error_handler=mock_send_notification,
     )
 
 
+@mock.patch(
+    "ebs_snapshot_lambda.send_slack_notification_and_exit", side_effect=SystemExit
+)
 @mock.patch("boto3.client")
 @mock.patch("ebs_snapshot_lambda.identify_stale_snapshots")
-def test_identify_stale_snapshots_raises_system_exit_on_client_error(_, mock_client):
+def test_identify_stale_snapshots_raises_system_exit_on_client_error(
+    _, mock_client, mock_send_notification
+):
     def identify_stale_snapshots_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
             {"Error": {"Code": "TestException", "Message": "Test Exception"}},
@@ -445,7 +517,10 @@ def test_identify_stale_snapshots_raises_system_exit_on_client_error(_, mock_cli
     with LogCapture() as log_capture:
         with pytest.raises(SystemExit):
             identify_stale_snapshots(
-                component="foo", ec2_client=mock_client, snapshot_retention_count=1
+                component="foo",
+                ec2_client=mock_client,
+                snapshot_retention_count=1,
+                error_handler=mock_send_notification,
             )
     log_capture.check(
         (
@@ -458,7 +533,8 @@ def test_identify_stale_snapshots_raises_system_exit_on_client_error(_, mock_cli
 
 
 @mock_ec2
-def test_delete_stale_snapshots():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_delete_stale_snapshots(mock_send_notification):
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
     client.create_volume(
@@ -471,9 +547,11 @@ def test_delete_stale_snapshots():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     ebs_volume_id = get_ebs_volume_id(
-        component="orchestrator", list_of_volumes=list_of_volumes
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
     )
     with mock.patch(
         "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
@@ -484,6 +562,7 @@ def test_delete_stale_snapshots():
             ebs_volume_id=ebs_volume_id,
             ec2_resource=resource,
             ec2_client=client,
+            error_handler=mock_send_notification,
         )
     client.create_volume(
         Size=10,
@@ -495,9 +574,11 @@ def test_delete_stale_snapshots():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     ebs_volume_id = get_ebs_volume_id(
-        component="orchestrator", list_of_volumes=list_of_volumes
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
     )
     with mock.patch(
         "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
@@ -508,9 +589,13 @@ def test_delete_stale_snapshots():
             ebs_volume_id=ebs_volume_id,
             ec2_resource=resource,
             ec2_client=client,
+            error_handler=mock_send_notification,
         )
     snapshots_to_remove = identify_stale_snapshots(
-        component="orchestrator", ec2_client=client, snapshot_retention_count=1
+        component="orchestrator",
+        ec2_client=client,
+        snapshot_retention_count=1,
+        error_handler=mock_send_notification,
     )
     snapshot_ids = []
 
@@ -521,7 +606,9 @@ def test_delete_stale_snapshots():
 
     with LogCapture(level=logging.INFO) as log_capture:
         delete_stale_snapshots(
-            ec2_client=client, snapshots_to_remove=snapshots_to_remove
+            ec2_client=client,
+            snapshots_to_remove=snapshots_to_remove,
+            error_handler=mock_send_notification,
         )
     log_capture.check(
         (
@@ -537,20 +624,30 @@ def test_delete_stale_snapshots():
     )
 
 
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
 @mock.patch("ebs_snapshot_lambda.boto3.client")
-def test_delete_stale_snapshots_delete_snapshot_calls_via_mock(mock_client):
+def test_delete_stale_snapshots_delete_snapshot_calls_via_mock(
+    mock_client, mock_send_notification
+):
     snapshots_to_remove = [{"SnapshotId": "snap-05fc368760b82218f"}]
     delete_stale_snapshots(
-        ec2_client=mock_client, snapshots_to_remove=snapshots_to_remove
+        ec2_client=mock_client,
+        snapshots_to_remove=snapshots_to_remove,
+        error_handler=mock_send_notification,
     )
 
     assert mock_client.delete_snapshot.call_count is 1
     mock_client.delete_snapshot.assert_called_with(SnapshotId="snap-05fc368760b82218f")
 
 
+@mock.patch(
+    "ebs_snapshot_lambda.send_slack_notification_and_exit", side_effect=SystemExit
+)
 @mock.patch("boto3.client")
 @mock.patch("ebs_snapshot_lambda.delete_stale_snapshots")
-def test_delete_stale_snapshots_raises_system_exit_on_client_error(_, mock_client):
+def test_delete_stale_snapshots_raises_system_exit_on_client_error(
+    _, mock_client, mock_send_notification
+):
     def delete_stale_snapshots_side_effect_client_error(**kwargs):
         raise botocore.exceptions.ClientError(
             {"Error": {"Code": "TestException", "Message": "Test Exception"}},
@@ -566,6 +663,7 @@ def test_delete_stale_snapshots_raises_system_exit_on_client_error(_, mock_clien
             delete_stale_snapshots(
                 ec2_client=mock_client,
                 snapshots_to_remove=[{"SnapshotId": "snap-f89214e2"}],
+                error_handler=mock_send_notification,
             )
     log_capture.check(
         ("ebs_snapshot_lambda", "INFO", "Attempting to delete snapshot snap-f89214e2"),
@@ -579,7 +677,8 @@ def test_delete_stale_snapshots_raises_system_exit_on_client_error(_, mock_clien
 
 
 @mock_ec2
-def test_delete_stale_snapshots_no_snapshots_to_delete():
+@mock.patch("ebs_snapshot_lambda.send_slack_notification_and_exit")
+def test_delete_stale_snapshots_no_snapshots_to_delete(mock_send_notification):
     client = boto3.client("ec2", region_name="eu-west-2")
     resource = boto3.resource("ec2", region_name="eu-west-2")
     client.create_volume(
@@ -592,9 +691,11 @@ def test_delete_stale_snapshots_no_snapshots_to_delete():
             }
         ],
     )
-    list_of_volumes = get_all_ebs_volumes(resource)
+    list_of_volumes = get_all_ebs_volumes(resource, mock_send_notification)
     ebs_volume_id = get_ebs_volume_id(
-        component="orchestrator", list_of_volumes=list_of_volumes
+        component="orchestrator",
+        list_of_volumes=list_of_volumes,
+        error_handler=mock_send_notification,
     )
     with mock.patch(
         "ebs_snapshot_lambda.wait_for_new_snapshot_to_become_available",
@@ -605,12 +706,18 @@ def test_delete_stale_snapshots_no_snapshots_to_delete():
             ebs_volume_id=ebs_volume_id,
             ec2_resource=resource,
             ec2_client=client,
+            error_handler=mock_send_notification,
         )
     snapshots_to_remove = identify_stale_snapshots(
-        component="orchestrator", ec2_client=client, snapshot_retention_count=1
+        component="orchestrator",
+        ec2_client=client,
+        snapshot_retention_count=1,
+        error_handler=mock_send_notification,
     )
     with LogCapture(level=logging.INFO) as log_capture:
         delete_stale_snapshots(
-            ec2_client=client, snapshots_to_remove=snapshots_to_remove
+            ec2_client=client,
+            snapshots_to_remove=snapshots_to_remove,
+            error_handler=mock_send_notification,
         )
     log_capture.check(("ebs_snapshot_lambda", "INFO", "No snapshots to delete"))
