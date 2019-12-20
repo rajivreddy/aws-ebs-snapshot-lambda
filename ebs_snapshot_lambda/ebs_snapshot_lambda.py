@@ -13,9 +13,9 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
 
-ec2_client = boto3.client("ec2", region_name="eu-west-2a")
-ec2_resource = boto3.resource("ec2", region_name="eu-west-2a")
-ssm_client = boto3.client("ssm", region_name="eu-west-2a")
+ec2_client = boto3.client("ec2", region_name="eu-west-2")
+ec2_resource = boto3.resource("ec2", region_name="eu-west-2")
+ssm_client = boto3.client("ssm", region_name="eu-west-2")
 
 
 def get_all_ebs_volumes(ec2_resource, error_handler):
@@ -158,7 +158,7 @@ def send_slack_notification_and_exit(slack_notification):
     LOGGER.info("Attempting to get notification from slack")
     LOGGER.info("Calling function...")
     slack_notifications_password = get_password_from_ssm(
-        ssm_client=boto3.client("ssm", region_name="eu-west-2a"),
+        ssm_client=boto3.client("ssm", region_name="eu-west-2"),
         parameter_name="/ebs-snapshot-lambda/slack-notifications-password",
     )
     LOGGER.info("Retrieved password, attempting to send notification")
