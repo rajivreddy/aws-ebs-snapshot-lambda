@@ -179,6 +179,7 @@ def lambda_handler(event: LambdaDict, context: LambdaContext):
     component = os.getenv("component")
     snapshot_retention_count = int(os.getenv("snapshot_retention_count"))
     slack_notification = SlackNotificationSetup()
+    send_slack_notification_and_exit(slack_notification=slack_notification)
     list_of_volumes = get_all_ebs_volumes(
         ec2_resource=ec2_resource, slack_notification_setup=slack_notification
     )
