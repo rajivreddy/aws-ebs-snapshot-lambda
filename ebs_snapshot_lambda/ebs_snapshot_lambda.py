@@ -9,7 +9,7 @@ from aws_typings import LambdaDict
 from slack_notifications import SlackNotificationSetup
 from botocore.exceptions import ClientError
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
 
 
