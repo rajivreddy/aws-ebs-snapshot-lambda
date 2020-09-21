@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import logging
+import os
 
 import requests
 
@@ -62,20 +63,21 @@ class SlackNotification(object):
     def create_ebs_snapshot_lambda_failure_notification(
         self, uri, slack_notifications_password, slack_channel, color="#ff0000"
     ):
+        environment = os.getenv("environment", "('environment' variable not set)")
         payload = {
             "channelLookup": {"by": "slack-channel", "slackChannels": [slack_channel]},
             "messageDetails": {
-                "text": "Encountered failure when running ebs-snapshot-lambda",
+                "text": f"Encountered failure when running ebs-snapshot-lambda in {environment}",
                 "username": "ebs-snapshot-lambda",
                 "attachments": [
                     {
-                        "fallback": "Encountered failure when running ebs-snapshot-lambda",
+                        "fallback": f"Encountered failure when running ebs-snapshot-lambda in {environment}",
                         "color": color,
-                        "title": "Encountered failure when running ebs-snapshot-lambda",
+                        "title": f"Encountered failure when running ebs-snapshot-lambda in {environment}",
                         "fields": [
                             {
                                 "title": "Message",
-                                "value": "Check cloudwatch logs for the ebs-snapshot-lambda "
+                                "value": f"Check cloudwatch logs for the ebs-snapshot-lambda in {environment} "
                                 "to investigate cause of failure",
                                 "short": False,
                             }
